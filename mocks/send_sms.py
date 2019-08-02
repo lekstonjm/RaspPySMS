@@ -10,5 +10,5 @@ s = serial.Serial("/dev/ttyS0", 115200)
 s.write(b'AT\r\n')
 s.flush()
 time.sleep(1)
-print(data)
+print(read(s))
 
