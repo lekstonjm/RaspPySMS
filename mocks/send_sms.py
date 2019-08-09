@@ -18,8 +18,8 @@ def send(command,s):
 
 def main():
     parser = argparse.ArgumentParser(prog=__name__,description='Simple SMS sender')
-    parser.add_argument('-s', action="store", default="", dest="server_number")
-    parser.add_argument('-p', action="store", default="", dest="pin")
+    parser.add_argument('--server', action="store", default="", dest="server_number")
+    parser.add_argument('--pin', action="store", default="", dest="pin")
     parser.add_argument('--power', action="store_true", default=False, dest="power")
     parser.add_argument('destination_number', action="store")
     parser.add_argument('text', action="store")
