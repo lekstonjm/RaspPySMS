@@ -10,7 +10,8 @@ install pytlas on pi
 *  increase swap (see https://raspberrypi.stackexchange.com/questions/8308/how-to-install-latest-scipy-version-on-raspberry-pi) and https://www.bitpi.co/2015/02/11/how-to-change-raspberry-pis-swapfile-size-on-rasbian/)
 *  install ligfortran and libblas see https://www.piwheels.org/project/scipy/
 *  (install fortran for scypi for snips) apt install gfortran
-* ( install math library for scypi) sudo apt install libatlas-base-dev 
+* ( install math library for scypi) sudo apt install libatlas-base-dev
+*  we can also install wheel https://www.piwheels.org/project/scipy/ 
 * (create env) python -m venv pytlasenv
 * (activate venv) source pytlasenv/bin/activate
 * (install wheel) pip install wheel
