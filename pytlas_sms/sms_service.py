@@ -6,7 +6,7 @@ import RPi.GPIO as GPIO
 import serial
 import re
 import blinker
-
+import logging
 
 class SMSService(threading.Thread):
     def __init__(self, power=False, pin="", sms_server="", serial_address = "/dev/ttyS0", speed = 115200, encoding="latin-1"):
@@ -19,19 +19,21 @@ class SMSService(threading.Thread):
         self.speed = speed
         self.serial = serial.Serial(serial_address, speed)
         self.is_running = True
-        self.incoming_re = re.compile(r'^\+CMGL:\ +(\d+),\"([^\"]*)\",\"([^\"]*)\"(,\"([^\"]*)\")?(,\"([^\"]+)\")?(,(\d+),(\d+))?\r?\n([^\r\n]+)\r?\n', re.MULTILINE)
+        self.incoming_re = re.compile(r'^\+CMGL:\ +(\d+),\"([^\"]*)\",\"(?P<sender>[^\"]*)\"(,\"([^\"]*)\")?(,\"(?P<date>[^\"]+)\")?(,(\d+),(\d+))?\r?\n(?P<message>[^\r\n]+)\r?\n', re.MULTILINE)
         self.new_message = False
         self.on_new_sms = blinker.Signal()
     
-    def send_serial(self, command, completed_response = "", timeout = 5.0 ):
-        self.serial.write("{0}\r".format(command).encode())
+    def send_serial(self, command, completed_response = "", timeout = 10.0 ):
+        full_command = "{0}\r".format(command).encode()
+        self.serial.write(full_command)
         self.serial.flush()
         response = ""
         #time.sleep(0.1)
         t0 = time.perf_counter()
         while re.search(completed_response, response) == None:
             while self.serial.inWaiting():
-                response = "{0}{1}".format(response,self.serial.read_all().decode(self.encoding))
+                response_part = self.serial.read_all().decode(self.encoding)
+                response = "{0}{1}".format(response,response_part)
                 time.sleep(0.1)
                 if time.perf_counter() - t0 > timeout:
                     raise Exception("Timeout")
@@ -52,33 +54,48 @@ class SMSService(threading.Thread):
         text_command = "{0}\x1a".format(message)
         response = self.send_serial(text_command,r"(OK|ERROR)")
         if re.search("OK", response) == None:
-            raise Exception("Unable to send sms")
+            raise Exception("failed to send sms")
+        #    raise Exception("Unable to send sms")
     
     def check_receive(self):
         response = self.send_serial('AT+CMGL="ALL"', r"(OK|ERROR)")
         match = self.incoming_re.search(response, 0)
         ids = []
+        sms_list = []
         while match != None:
             (__start, end) = match.span(0)
             id = match.group(1)
             ids.append(id)
-            sender=match.group(2)
-            date=match.group(3)
-            message=match.group(11)
-            self.on_new_sms.send(self, sender=sender, date=date, message=message)
+
+            date=match.group('date')
+            sender=match.group('sender')
+            message=match.group('message')
+            sms = (date, sender, message)
+            sms_list.append(sms)
+
             match = self.incoming_re.search(response, end+1)
         for id in ids:
             response = self.send_serial('AT+CMGD={0}'.format(id),"(OK|ERROR)")
-            #if re.search("OK",response) == None:
+            if re.search("OK",response) == None:
+                logging.error("failed to delete sms {0}".format(id))
             #    print("failed to delete : {0}".format(id))
+
+        for sms in sms_list:
+            (date, sender, message) = sms
+            self.on_new_sms.send(self, sender=sender, date=date, message=message)
+
         time.sleep(0.1)
 
     def run(self):
         while self.is_running:
-            self.check_receive()
-            if (self.new_message):
-                self.do_send()
-            time.sleep(0.1)
+            try:
+                self.check_receive()            
+                time.sleep(0.1)
+                if (self.new_message):
+                    self.do_send()
+                    time.sleep(0.1)
+            except Exception as ex:
+                logging.exception(ex)
 
     def stop(self):
         self.is_running = False
